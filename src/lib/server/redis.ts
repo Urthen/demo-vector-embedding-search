@@ -1,19 +1,21 @@
 import { createClient, SchemaFieldTypes, VectorAlgorithms, type RedisClientType } from 'redis';
-import process from "process";
 
-const VECTOR_REDIS_PORT = process.env.VECTOR_REDIS_PORT ? Number(process.env.VECTOR_REDIS_PORT) : undefined;
-const VECTOR_REDIS_PASS = process.env.VECTOR_REDIS_PASS;
-const VECTOR_REDIS_CONN = process.env.VECTOR_REDIS_CONN;
+// Load Redis connection info from environment
+const VECTOR_REDIS_PORT = import.meta.env.VITE_VECTOR_REDIS_PORT ? Number(import.meta.env.VITE_VECTOR_REDIS_PORT) : undefined;
+const VECTOR_REDIS_PASS = import.meta.env.VITE_VECTOR_REDIS_PASS;
+const VECTOR_REDIS_CONN = import.meta.env.VITE_VECTOR_REDIS_CONN;
 
 // Vector dimension as returned by OpenAI
 const VECTOR_DIM = 1536;
 
+// Search index information
 const INDEX_NAME = 'idx:search-vector-index';
 const INDEX_PREFIX = "search-index"
 const NUM_RESULTS = 5;
 
 let redis: RedisClientType;
 
+// Get redis client singleton
 const getRedis = async (): Promise<RedisClientType> => {
     if (!redis) {
         redis = createClient({
@@ -28,6 +30,7 @@ const getRedis = async (): Promise<RedisClientType> => {
     return redis;
 };
 
+// Create index if it doesn't already exist
 const createIndex = async () => {
     const client = await getRedis();
 
@@ -50,14 +53,17 @@ const createIndex = async () => {
         console.log("Index created")
     } catch (e: any) {
         if (e.message === 'Index already exists') {
-            console.log('Index exists already, skipped creation.');
+            // If it already exists, no problem.
+            console.log('Index already exists');
         } else {
+            // If any other error (probably bad connection information) log it and shut down for simplicity
             console.error(e);
             process.exit(1);
         }
     }
 }
 
+// Add phrase and associated embedding vector to the Redis search index
 export const addPhrase = async (phrase: string, vector: Buffer) => {
     const client = await getRedis();
     await createIndex();
@@ -75,11 +81,17 @@ export type SearchResult = {
 	phrase: string;
 };
 
+// Find phrase closest to given embedding vector
 export const searchPhrases = async(vector: Buffer): Promise<SearchResult[]> => {
 
+
+    // Get redis and create index if it doesn't exist, just to simplify logic
     const client = await getRedis();
     await createIndex();
 
+    // Query for nearest NUM_RESULTS
+    // Adapted from OpenAI example
+    // https://github.com/openai/openai-cookbook/blob/main/examples/vector_databases/redis/redisqna/redisqna.ipynb
     const redis_query = `*=>[KNN ${NUM_RESULTS} @embedding $vector AS vector_score]`;
     
     let redis_results;
@@ -87,7 +99,7 @@ export const searchPhrases = async(vector: Buffer): Promise<SearchResult[]> => {
 		redis_results = await redis.ft.search(INDEX_NAME, redis_query, {
 			SORTBY: {
 				BY: 'vector_score',
-				DIRECTION: 'DESC'
+				DIRECTION: 'ASC'
 			},
 			RETURN: ['phrase'],
 			DIALECT: 2,
@@ -97,8 +109,9 @@ export const searchPhrases = async(vector: Buffer): Promise<SearchResult[]> => {
 		console.error('Error querying redis:', e);
 	}
 
+    // Process results for presentation
 	if (redis_results) {
-		return redis_results.documents.map((r) => r.value).reverse() as SearchResult[];
+		return redis_results.documents.map((r) => r.value) as SearchResult[];
 	} else {
 		return [];
 	}

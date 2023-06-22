@@ -1,19 +1,17 @@
 import { Configuration, OpenAIApi } from 'openai';
 
-import process from "process";
-
 // OpenAI Setup
 
 const MODEL_NAME = 'text-embedding-ada-002';
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
 
 const openaiConfiguration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: OPENAI_API_KEY
 });
 
 const openai = new OpenAIApi(openaiConfiguration);
 
 export const getEmbeddingVector = async (phrase: string) => {
-
     // Get the embedding result from OpenAPI
     const embeddingResult = await openai.createEmbedding({
 		model: MODEL_NAME,
