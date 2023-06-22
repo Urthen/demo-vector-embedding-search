@@ -14,5 +14,4 @@ Demo: Redis Embedding Vector DB Search
 OPENAI_API_KEY="your secret key here"
 ```
 * Start up the redis server with docker: `docker-compose up -d`
-* Run `npm start`
-* Visit `localhost:3000`
+* Run `npm run dev -- --open`
