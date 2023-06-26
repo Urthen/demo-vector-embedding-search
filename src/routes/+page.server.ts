@@ -30,6 +30,6 @@ export const actions = {
         
         const results = await findMatches(phrase);
 
-        return { success: true, results };
+        return { success: true, results, phrase };
     }
 };

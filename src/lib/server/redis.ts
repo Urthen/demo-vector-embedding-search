@@ -1,4 +1,6 @@
 import { createClient, SchemaFieldTypes, VectorAlgorithms, type RedisClientType } from 'redis';
+import crypto from 'crypto';
+import { actions } from '../../routes/+page.server';
 
 // Load Redis connection info from environment
 const VECTOR_REDIS_PORT = import.meta.env.VITE_VECTOR_REDIS_PORT ? Number(import.meta.env.VITE_VECTOR_REDIS_PORT) : undefined;
@@ -36,9 +38,12 @@ const createIndex = async () => {
 
     try {
         await client.ft.create(INDEX_NAME, {
+            // We need to store the phrase in the index, as that is what we want to get back out
             phrase: {
                 type: SchemaFieldTypes.TEXT
             },
+            // The embedding is stored as a multidimensional Float64 vector with appropriate
+            // configuration to allow it to be searchable via the cosine distance metric
             embedding: {
                 type: SchemaFieldTypes.VECTOR,
                 ALGORITHM: VectorAlgorithms.HNSW,
@@ -67,7 +72,9 @@ const createIndex = async () => {
 export const addPhrase = async (phrase: string, vector: Buffer) => {
     const client = await getRedis();
     await createIndex();
-    const phraseId = phrase.toLowerCase().replace(/\s/g, "");
+    // Create a hash id for this phrase
+    // Don't just use the phrase itself - Redis keys should be short
+    const phraseId = crypto.createHash('sha256').update(phrase).digest('hex');
     const key = `${INDEX_PREFIX}:${phraseId}`;
     const mapping = {
         "phrase": phrase,
